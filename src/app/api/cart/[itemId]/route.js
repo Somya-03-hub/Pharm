@@ -1,0 +1,34 @@
+import { NextResponse } from "next/server";
+import { getUserIdFromRequest } from "@/lib/auth";
+import { updateCartItemSchema } from "@/lib/schemas";
+import { updateCartItem, removeCartItem } from "@/lib/services";
+
+export async function PATCH(req, { params }) {
+  const userId = getUserIdFromRequest();
+  if (!userId) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json();
+  const parsed = updateCartItemSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ message: parsed.error.issues[0]?.message }, { status: 400 });
+  }
+
+  try {
+    const item = await updateCartItem({ userId, itemId: params.itemId, ...parsed.data });
+    return NextResponse.json(item);
+  } catch (err) {
+    return NextResponse.json({ message: err.message }, { status: 400 });
+  }
+}
+
+export async function DELETE(req, { params }) {
+  const userId = getUserIdFromRequest();
+  if (!userId) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+  try {
+    await removeCartItem({ userId, itemId: params.itemId });
+    return NextResponse.json({ message: "Removed" });
+  } catch (err) {
+    return NextResponse.json({ message: err.message }, { status: 400 });
+  }
+}

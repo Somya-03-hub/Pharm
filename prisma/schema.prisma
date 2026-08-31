@@ -1,0 +1,158 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  password      String
+  address       String?
+  resetOtp       String?
+  resetOtpExpiry DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  subscriptions Subscription[]
+  orders        Order[]
+  notifications Notification[]
+  paymentMethod PaymentMethod?
+  cart          Cart?          // NEW
+}
+
+model PaymentMethod {
+  id             String   @id @default(cuid())
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String   @unique
+  cardHolderName String
+  last4          String
+  expiry         String
+  createdAt      DateTime @default(now())
+}
+
+model Medicine {
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  price         Float
+  category      String?
+  imageUrl      String?
+  createdAt     DateTime       @default(now())
+
+  subscriptions Subscription[]
+  orderItems    OrderItem[]
+  cartItems     CartItem[]     // NEW
+}
+
+model Subscription {
+  id                  String              @id @default(cuid())
+  user                User                @relation(fields: [userId], references: [id])
+  userId              String
+  medicine            Medicine            @relation(fields: [medicineId], references: [id])
+  medicineId          String
+  frequency           Frequency
+  status              SubscriptionStatus  @default(ACTIVE)
+  nextRefillDate      DateTime
+  lastReminderSentFor DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  orders              Order[]
+}
+
+model Order {
+  id                   String        @id @default(cuid())
+  user                 User          @relation(fields: [userId], references: [id])
+  userId               String
+  subscription         Subscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId       String?
+  status               OrderStatus   @default(PENDING)
+  totalAmount          Float
+  nextPaymentAttemptAt DateTime?
+  createdAt            DateTime      @default(now())
+
+  items                OrderItem[]
+  payments             Payment[]
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    String
+  medicine   Medicine @relation(fields: [medicineId], references: [id])
+  medicineId String
+  quantity   Int      @default(1)
+  price      Float
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  order         Order         @relation(fields: [orderId], references: [id])
+  orderId       String
+  status        PaymentStatus
+  retryCount    Int           @default(0)
+  attemptedAt   DateTime      @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  message   String
+  type      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// NEW: Cart + CartItem
+model Cart {
+  id        String     @id @default(cuid())
+  user      User       @relation(fields: [userId], references: [id])
+  userId    String     @unique
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  cart       Cart     @relation(fields: [cartId], references: [id])
+  cartId     String
+  medicine   Medicine @relation(fields: [medicineId], references: [id])
+  medicineId String
+  quantity   Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  @@unique([cartId, medicineId])
+}
